@@ -67,7 +67,7 @@ void setup() {
   // Options: FRAMESIZE_UXGA (1600x1200), FRAMESIZE_SXGA (1280x1024), FRAMESIZE_XGA (1024x768),
   // FRAMESIZE_SVGA (800x600), FRAMESIZE_VGA (640x480)
   config.frame_size = FRAMESIZE_SVGA; // Changed from UXGA for speed
-  config.jpeg_quality = 12; // Can be 10-63, lower number means higher quality
+  config.jpeg_quality = 20; // Can be 10-63, lower number means higher quality
   config.fb_count = 1; // Using 1 frame buffer can also speed things up
 
   // Camera init
@@ -80,7 +80,7 @@ void setup() {
 
 void loop() {
   // Capture and send image every 10 seconds
-  delay(10000);
+  delay(1000);
   
   camera_fb_t * fb = esp_camera_fb_get();
   if (!fb) {

@@ -34,4 +34,4 @@ A ESP 32 Cam Cilent + Server Side communication via github codespace as an API
 5.  Flash the firmware to your ESP32-CAM.
 
 
-### Start up server : uvicorn server.main:app --host 0.0.0.0 --port 8000
+### Start up server : /workspaces/SingaPlayGO-CILENT-SEVER-/.venv/bin/python -m uvicorn server.main:app --host 0.0.0.0 --port 8000
