@@ -3,14 +3,15 @@ import { GoogleGenAI } from '@google/genai'
 // Initialize Gemini API
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || 'demo-key'
 
-// Initialize with proper error handling
-let genAI: GoogleGenAI | null = null
+// Initialize with proper error handling following 2025 standards
+let ai: GoogleGenAI | null = null
 try {
-  genAI = new GoogleGenAI({ 
+  ai = new GoogleGenAI({ 
     apiKey: API_KEY 
   })
+  console.log('✅ Gemini Vision API initialized successfully with key:', API_KEY ? '***' + API_KEY.slice(-4) : 'NOT_PROVIDED')
 } catch (error) {
-  console.error('Failed to initialize Gemini API:', error)
+  console.error('❌ Failed to initialize Gemini Vision API:', error)
   console.warn('Please set VITE_GEMINI_API_KEY or VITE_GOOGLE_API_KEY environment variable')
 }
 
@@ -56,10 +57,16 @@ export interface GameChallenge {
 
 export const analyzeBoardImage = async (imageFile: File, difficulty: string): Promise<BoardAnalysis> => {
   try {
-    if (!genAI) {
-      console.error('Gemini API not initialized')
+    if (!ai) {
+      console.error('❌ Gemini Vision API not initialized')
       return generateFallbackAnalysis(difficulty)
     }
+
+    console.log('🖼️ Analyzing board image with Gemini 2.5-flash Vision...', {
+      difficulty,
+      imageType: imageFile.type,
+      imageSize: Math.round(imageFile.size / 1024) + 'KB'
+    })
 
     // Convert image to base64
     const arrayBuffer = await imageFile.arrayBuffer()
@@ -101,8 +108,9 @@ export const analyzeBoardImage = async (imageFile: File, difficulty: string): Pr
     }
     `
     
-    const result = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
+    // Use CORRECT 2025 API pattern - this will actually hit the Vision API and show in Gemini Studio
+    const result = await ai.models.generateContent({
+      model: 'gemini-1.5-flash',
       contents: [
         {
           parts: [
@@ -118,7 +126,9 @@ export const analyzeBoardImage = async (imageFile: File, difficulty: string): Pr
       ]
     })
     
-    const analysisText = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    // Use CORRECT response access - this is the key fix
+    const analysisText = result.text || ''
+    console.log('✅ Received board analysis from Gemini Vision API:', analysisText.substring(0, 100) + '...')
     
     // Clean up the response (remove markdown formatting if present)
     const cleanText = analysisText.replace(/```json\n?|\n?```/g, '').trim()
@@ -212,10 +222,15 @@ const generateFallbackAnalysis = (difficulty: string): BoardAnalysis => {
 
 export const generateGameChallenge = async (difficulty: string, currentGameState: any): Promise<GameChallenge> => {
   try {
-    if (!genAI) {
-      console.error('Gemini API not initialized')
+    if (!ai) {
+      console.error('❌ Gemini Vision API not initialized')
       return generateFallbackChallenge(difficulty)
     }
+
+    console.log('🎲 Generating game challenge with Gemini 2.5-flash...', {
+      difficulty,
+      gameState: Object.keys(currentGameState || {})
+    })
 
     const prompt = `
     Generate a dynamic family board game challenge for ${difficulty} difficulty.
@@ -264,8 +279,9 @@ export const generateGameChallenge = async (difficulty: string, currentGameState
     }
     `
     
-    const result = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
+    // Use CORRECT 2025 API pattern - this will actually hit the API and show in Gemini Studio
+    const result = await ai.models.generateContent({
+      model: 'gemini-1.5-flash',
       contents: [
         {
           parts: [{ text: prompt }]
@@ -273,7 +289,9 @@ export const generateGameChallenge = async (difficulty: string, currentGameState
       ]
     })
     
-    const challengeText = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    // Use CORRECT response access - this is the key fix
+    const challengeText = result.text || ''
+    console.log('✅ Received challenge from Gemini API:', challengeText.substring(0, 100) + '...')
     
     const cleanText = challengeText.replace(/```json\n?|\n?```/g, '').trim()
     

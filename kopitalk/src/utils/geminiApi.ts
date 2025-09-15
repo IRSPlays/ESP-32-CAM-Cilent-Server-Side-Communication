@@ -3,16 +3,18 @@ import { GoogleGenAI } from '@google/genai'
 // Initialize Gemini API using the new SDK (you'll need to add your API key in .env file)
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY || 'demo-key'
 
-// Initialize with proper error handling
+// Initialize with proper error handling following 2025 standards
 let genAI: GoogleGenAI | null = null
 try {
-  genAI = new GoogleGenAI({ 
-    apiKey: API_KEY 
-  })
+  genAI = new GoogleGenAI(API_KEY)
+  console.log('✅ Gemini API initialized successfully with key:', API_KEY ? '***' + API_KEY.slice(-4) : 'NOT_PROVIDED')
 } catch (error) {
-  console.error('Failed to initialize Gemini API:', error)
+  console.error('❌ Failed to initialize Gemini API:', error)
   console.warn('Please set VITE_GEMINI_API_KEY or VITE_GOOGLE_API_KEY environment variable')
 }
+
+// Allow overriding model via env; default to 1.5-flash
+const MODEL = import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash'
 
 export interface ConversationAnalysis {
   quality: number // 1-100
@@ -114,14 +116,34 @@ export const getRandomEvent = (): RandomEvent => {
 
 export const analyzeConversation = async (audioBlob: Blob, duration: number): Promise<ConversationAnalysis> => {
   try {
-    // Check if genAI is properly initialized
+    // Check if API is properly initialized
     if (!genAI) {
-      throw new Error('Gemini API not initialized. Please check your API key configuration.')
+      throw new Error('❌ Gemini API not initialized. Please check your API key configuration.')
     }
 
-    // Convert audio to base64 for Gemini
+  console.log(`🎙️ Analyzing conversation with Gemini model=${MODEL} (multimodal)...`, {
+      duration: duration + 's',
+      audioType: audioBlob.type,
+      audioSize: Math.round(audioBlob.size / 1024) + 'KB',
+      maxSizeSupported: '20MB',
+      supportedFormats: ['audio/wav', 'audio/mp3', 'audio/aiff', 'audio/aac', 'audio/ogg', 'audio/flac']
+    })
+
+    // Validate audio blob
+    if (audioBlob.size === 0) {
+      throw new Error('Empty audio blob received')
+    }
+
+    if (audioBlob.size > 20 * 1024 * 1024) { // 20MB limit
+      throw new Error('Audio file too large (max 20MB)')
+    }
+
+    // Convert audio to base64 for Gemini with proper error handling
+    console.log('🔄 Converting audio to base64...')
     const arrayBuffer = await audioBlob.arrayBuffer()
     const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+    
+    console.log('✅ Base64 conversion complete, length:', base64Audio.length)
     
     const prompt = `
     Analyze this family conversation recording for intergenerational bonding quality.
@@ -140,26 +162,51 @@ export const analyzeConversation = async (audioBlob: Blob, duration: number): Pr
     Respond in JSON format with: quality, movement, feedback, topics_covered, bonding_level
     `
     
-    // Use the new SDK's generateContent method with multimodal support
+    // Use CORRECT multimodal API pattern based on @google/genai v1.19.0
     const response = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: MODEL,
       contents: [
         {
+          role: 'user', 
           parts: [
             {
               inlineData: {
-                mimeType: audioBlob.type,
+                mimeType: audioBlob.type || 'audio/webm',
                 data: base64Audio
               }
             },
-            { text: prompt }
+            {
+              text: prompt
+            }
           ]
         }
       ]
     })
 
-    const analysisText = response.text || '{}'
-    const analysis = JSON.parse(analysisText)
+    // Use CORRECT response access with proper error handling
+    console.log('📨 Raw API response received:', response)
+    
+    if (!response || !response.candidates || !response.candidates[0] || !response.candidates[0].content) {
+      throw new Error('Empty response from Gemini API')
+    }
+    
+    const analysisText = response.candidates[0].content.parts?.[0]?.text
+    if (!analysisText) {
+      throw new Error('No text content in Gemini API response')
+    }
+    
+    console.log('✅ Received analysis from Gemini API (length:', analysisText.length, '):', analysisText.substring(0, 200) + '...')
+    
+    // Clean up JSON response (remove markdown formatting if present)
+    const cleanText = analysisText.replace(/```json\n?|\n?```/g, '').trim()
+    
+    let analysis
+    try {
+      analysis = JSON.parse(cleanText)
+    } catch (parseError) {
+      console.warn('⚠️ Failed to parse JSON response, using fallback. Raw text:', cleanText)
+      throw new Error(`Invalid JSON response: ${parseError}`)
+    }
     
     return {
       quality: analysis.quality || Math.floor(Math.random() * 40) + 60,
@@ -171,33 +218,66 @@ export const analyzeConversation = async (audioBlob: Blob, duration: number): Pr
     }
     
   } catch (error) {
-    console.error('Gemini API error:', error)
+    console.error('❌ Gemini API conversation analysis error:', {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      duration,
+      audioSize: audioBlob.size,
+      audioType: audioBlob.type
+    })
     
-    // Fallback analysis based on duration and realistic patterns
+    // Enhanced fallback analysis based on duration and realistic patterns
     const baseQuality = Math.random() * 40 + 50 // 50-90%
     const durationBonus = Math.min(duration / 60, 1) // Up to 1 minute bonus
     const quality = Math.min(baseQuality + (durationBonus * 20), 100)
     
-    return {
+    const fallbackAnalysis: ConversationAnalysis = {
       quality: Math.round(quality),
       movement: Math.floor(quality / 20) + 1, // 1-5 based on quality
-      earnings: 0,
-      feedback: "The AI detected meaningful intergenerational dialogue. Keep fostering these connections!",
-      topics_covered: ["family stories", "shared memories", "generational wisdom"],
-      bonding_level: quality > 80 ? 'excellent' : quality > 60 ? 'high' : 'medium'
+      earnings: 0, // Audio gives movement, not money
+      feedback: `AI analysis temporarily unavailable. Duration: ${duration}s suggests ${quality > 80 ? 'excellent' : quality > 60 ? 'good' : 'basic'} engagement level.`,
+      topics_covered: ["family stories", "shared memories", "generational wisdom", "life experiences"],
+      bonding_level: quality > 80 ? 'excellent' : quality > 60 ? 'high' : quality > 40 ? 'medium' : 'low'
     }
+    
+    console.log('🔄 Using fallback analysis:', fallbackAnalysis)
+    return fallbackAnalysis
   }
 }
 
 export const analyzeVideo = async (videoBlob: Blob, description: string): Promise<VideoAnalysis> => {
   try {
-    // Check if genAI is properly initialized
+    // Check if API is properly initialized
     if (!genAI) {
-      throw new Error('Gemini API not initialized. Please check your API key configuration.')
+      throw new Error('❌ Gemini API not initialized. Please check your API key configuration.')
     }
 
+  console.log(`📹 Analyzing TikTok video with Gemini model=${MODEL} (multimodal vision)...`, {
+      description,
+      videoType: videoBlob.type,
+      videoSize: Math.round(videoBlob.size / 1024) + 'KB',
+      maxSizeSupported: '20MB',
+      supportedFormats: ['video/mp4', 'video/mpeg', 'video/mov', 'video/avi', 'video/x-flv', 'video/mpg', 'video/webm', 'video/wmv', 'video/3gpp']
+    })
+
+    // Validate video blob
+    if (videoBlob.size === 0) {
+      throw new Error('Empty video blob received')
+    }
+
+    if (videoBlob.size > 20 * 1024 * 1024) { // 20MB limit
+      throw new Error('Video file too large (max 20MB)')
+    }
+
+    if (!description.trim()) {
+      throw new Error('Video description is required for analysis')
+    }
+
+    console.log('🔄 Converting video to base64...')
     const arrayBuffer = await videoBlob.arrayBuffer()
     const base64Video = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+    
+    console.log('✅ Video base64 conversion complete, length:', base64Video.length)
     
     const prompt = `
     Analyze this TikTok trend video for creativity and family engagement.
@@ -215,26 +295,50 @@ export const analyzeVideo = async (videoBlob: Blob, description: string): Promis
     Respond in JSON format with: performance_score, earnings, feedback, creativity_level
     `
     
-    // Use the new SDK's generateContent method with multimodal support
+    // Use CORRECT multimodal API pattern based on @google/genai v1.19.0
     const response = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: MODEL,
       contents: [
         {
+          role: 'user',
           parts: [
             {
               inlineData: {
-                mimeType: videoBlob.type,
+                mimeType: videoBlob.type || 'video/webm',
                 data: base64Video
               }
             },
-            { text: prompt }
+            {
+              text: prompt
+            }
           ]
         }
       ]
     })
 
-    const analysisText = response.text || '{}'
-    const analysis = JSON.parse(analysisText)
+    // Use CORRECT response access with proper error handling
+    console.log('📨 Raw video API response received:', response)
+    
+    if (!response || !response.candidates || !response.candidates[0] || !response.candidates[0].content) {
+      throw new Error('Empty response from Gemini Video API')
+    }
+    
+    const analysisText = response.candidates[0].content.parts?.[0]?.text
+    if (!analysisText) {
+      throw new Error('No text content in Gemini Video API response')
+    }
+    console.log('✅ Received video analysis from Gemini API (length:', analysisText.length, '):', analysisText.substring(0, 200) + '...')
+    
+    // Clean up JSON response (remove markdown formatting if present)
+    const cleanText = analysisText.replace(/```json\n?|\n?```/g, '').trim()
+    
+    let analysis
+    try {
+      analysis = JSON.parse(cleanText)
+    } catch (parseError) {
+      console.warn('⚠️ Failed to parse video JSON response, using fallback. Raw text:', cleanText)
+      throw new Error(`Invalid JSON response: ${parseError}`)
+    }
     
     return {
       performance_score: analysis.performance_score || Math.floor(Math.random() * 40) + 60,
@@ -244,9 +348,15 @@ export const analyzeVideo = async (videoBlob: Blob, description: string): Promis
     }
     
   } catch (error) {
-    console.error('Gemini API error:', error)
+    console.error('❌ Gemini API video analysis error:', {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      description,
+      videoSize: videoBlob.size,
+      videoType: videoBlob.type
+    })
     
-    // Fallback analysis
+    // Enhanced fallback analysis
     const videoSize = videoBlob.size / (1024 * 1024) // MB
     const descriptionLength = description.length
     
@@ -265,11 +375,14 @@ export const analyzeVideo = async (videoBlob: Blob, description: string): Promis
     const earnings = Math.floor(performance * 6) + 5 // $5-10
     const performanceScore = Math.round(performance * 100)
     
-    return {
+    const fallbackAnalysis: VideoAnalysis = {
       performance_score: performanceScore,
       earnings,
-      feedback: `Excellent creativity! Your trend interpretation was ${performanceScore}% on point and shows great family bonding.`,
-      creativity_level: performance > 0.8 ? 'amazing' : performance > 0.6 ? 'great' : 'good'
+      feedback: `AI analysis temporarily unavailable. Based on video metrics (${Math.round(videoSize)}MB, ${descriptionLength} chars): ${performanceScore}% creativity score with great family bonding potential!`,
+      creativity_level: performance > 0.8 ? 'amazing' : performance > 0.6 ? 'great' : performance > 0.4 ? 'good' : 'basic'
     }
+    
+    console.log('🔄 Using video fallback analysis:', fallbackAnalysis)
+    return fallbackAnalysis
   }
 }

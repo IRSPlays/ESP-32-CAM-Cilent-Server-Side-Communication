@@ -1,0 +1,36 @@
+{
+  "chat.tools.terminal.autoApprove": {
+    "/dev/null": true,
+    "/": true,
+    "cd": true,
+
+    "export": true,
+    "rm": true,
+
+    "npm info": true,
+    "npm install": true,
+    "npm run build": true,
+    "npm run dev": true,
+    "npm run preview": true,
+    "npx": true,
+
+    "node": true,
+    "node -e": true,
+    "node test-api.js": true,
+    "node test-multimodal.js": true,
+
+    "GoogleGenAI": true,
+    "const": true,
+    "console.log(Object.getOwnPropertyNames(ai))": true,
+    "console.log(Object.getOwnPropertyNames(Object.getPrototypeOf(ai)))": true,
+
+    "timeout": true,
+    "true": true
+  },
+  "chat.tools.edits.autoApprove": {
+    "**/.git/**": true,
+    "**/.vscode/*.json": true,
+    "**/{package.json,package-lock.json,server.xml,build.rs,web.config,.gitattributes,.env}": true,
+    "**/*.{csproj,fsproj,vbproj}": true
+  }
+}

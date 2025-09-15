@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Mic, MicOff, Play, Pause, Upload, X } from 'lucide-react'
+import { analyzeConversation, ConversationAnalysis } from '../utils/geminiApi'
 
 interface Props {
   isOpen: boolean
   onClose: () => void
-  onAnalysisComplete: (result: { quality: number; movement: number; earnings: number; feedback: string }) => void
+  onAnalysisComplete: (result: ConversationAnalysis) => void
 }
 
 const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisComplete }) => {
@@ -16,7 +17,7 @@ const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisCompl
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const timerRef = useRef<number | null>(null)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Cleanup on unmount or close
   useEffect(() => {
@@ -50,8 +51,23 @@ const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisCompl
         } 
       })
       
+      // Use compatible audio format for Gemini API
+      let mimeType = 'audio/webm;codecs=opus'
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        // Fallback to formats supported by Gemini
+        if (MediaRecorder.isTypeSupported('audio/webm')) {
+          mimeType = 'audio/webm'
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          mimeType = 'audio/mp4'
+        } else {
+          mimeType = 'audio/wav' // Final fallback
+        }
+      }
+      
+      console.log('🎤 Using audio MIME type:', mimeType)
+      
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
+        mimeType: mimeType
       })
       
       const chunks: BlobPart[] = []
@@ -61,9 +77,14 @@ const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisCompl
       }
       
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
+        const blob = new Blob(chunks, { type: mimeType })
         setAudioBlob(blob)
         stream.getTracks().forEach(track => track.stop())
+        console.log('🎤 Audio recorded:', { 
+          size: Math.round(blob.size / 1024) + 'KB',
+          type: blob.type,
+          duration: recordingTime + 's'
+        })
       }
       
       mediaRecorderRef.current = mediaRecorder
@@ -124,39 +145,53 @@ const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisCompl
     setIsAnalyzing(true)
     
     try {
-      // Simulate Gemini API analysis
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      console.log('🎤 Starting real Gemini API analysis for conversation...', {
+        duration: recordingTime,
+        audioSize: Math.round(audioBlob.size / 1024) + 'KB',
+        mimeType: audioBlob.type
+      })
       
-      // Generate realistic results based on recording duration
-      const duration = recordingTime
-      const baseQuality = Math.random() * 0.4 + 0.6 // 60-100%
-      const durationBonus = Math.min(duration / 30, 1) // Bonus for longer recordings
+      // Use actual Gemini API analysis
+      const result = await analyzeConversation(audioBlob, recordingTime)
       
-      const quality = Math.min(baseQuality + (durationBonus * 0.3), 1)
-      const movement = Math.floor(quality * 3) + 1 // 1-3 spaces
-      const earnings = Math.floor(quality * 15) + 5 // $5-20
-      
-      const feedbackMessages = [
-        "Great storytelling! The AI detected engaging conversation patterns.",
-        "Good family bonding moment detected. Keep sharing those memories!",
-        "Nice emotional connection! The discussion shows genuine interest.",
-        "Excellent intergenerational dialogue. Both perspectives were valued."
-      ]
-      
-      const result = {
-        quality: Math.round(quality * 100),
-        movement,
-        earnings,
-        feedback: feedbackMessages[Math.floor(Math.random() * feedbackMessages.length)]
-      }
-      
+      console.log('✅ Conversation analysis complete:', result)
       onAnalysisComplete(result)
       onClose()
     } catch (error) {
-      console.error('Analysis failed:', error)
-      alert('Analysis failed. Please try again.')
+      console.error('❌ Gemini API analysis failed:', error)
+      
+      // Fallback with proper ConversationAnalysis structure
+      const fallbackResult: ConversationAnalysis = {
+        quality: Math.floor(Math.random() * 40) + 60, // 60-100%
+        movement: Math.floor(Math.random() * 3) + 1, // 1-3 spaces  
+        earnings: 0, // Audio gives movement, not earnings
+        feedback: "AI analysis temporarily unavailable. Your conversation shows great family bonding potential!",
+        topics_covered: ["family stories", "shared experiences"],
+        bonding_level: recordingTime > 60 ? 'high' : recordingTime > 30 ? 'medium' : 'low'
+      }
+      
+      onAnalysisComplete(fallbackResult)
+      onClose()
     } finally {
       setIsAnalyzing(false)
+    }
+  }
+
+  const saveRecording = () => {
+    if (!audioBlob) return
+    try {
+      const url = URL.createObjectURL(audioBlob)
+      const a = document.createElement('a')
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const ext = (audioBlob.type.includes('webm') ? 'webm' : audioBlob.type.includes('mp4') ? 'mp4' : audioBlob.type.includes('wav') ? 'wav' : 'audio')
+      a.href = url
+      a.download = `kopitalk-recording-${timestamp}.${ext}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (e) {
+      console.error('Failed to save recording:', e)
     }
   }
 
@@ -238,6 +273,13 @@ const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisCompl
               >
                 {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 {isPlaying ? 'Pause' : 'Play'}
+              </button>
+
+              <button
+                onClick={saveRecording}
+                className="flex items-center gap-2 px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-medium transition-all"
+              >
+                Save Recording
               </button>
               
               <button

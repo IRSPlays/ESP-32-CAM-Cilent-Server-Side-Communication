@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Camera, Video, VideoOff, Play, X, Upload, DollarSign } from 'lucide-react'
+import { Camera, Video, VideoOff, Play, X, DollarSign } from 'lucide-react'
 import { analyzeVideo as geminiAnalyzeVideo, VideoAnalysis } from '../utils/geminiApi'
 
 interface Props {
@@ -86,8 +86,23 @@ const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComp
     if (!streamRef.current) return
     
     try {
+      // Use compatible video format for Gemini API
+      let mimeType = 'video/webm;codecs=vp9'
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        // Fallback to formats supported by Gemini
+        if (MediaRecorder.isTypeSupported('video/webm')) {
+          mimeType = 'video/webm'
+        } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+          mimeType = 'video/mp4'
+        } else {
+          mimeType = 'video/webm' // Final fallback
+        }
+      }
+      
+      console.log('📹 Using video MIME type:', mimeType)
+      
       const mediaRecorder = new MediaRecorder(streamRef.current, {
-        mimeType: 'video/webm;codecs=vp9'
+        mimeType: mimeType
       })
       
       const chunks: BlobPart[] = []
@@ -99,8 +114,13 @@ const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComp
       }
       
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' })
+        const blob = new Blob(chunks, { type: mimeType })
         setVideoBlob(blob)
+        console.log('📹 Video recorded:', { 
+          size: Math.round(blob.size / 1024) + 'KB',
+          type: blob.type,
+          duration: recordingTime + 's'
+        })
       }
       
       mediaRecorderRef.current = mediaRecorder

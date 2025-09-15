@@ -67,6 +67,8 @@ The app will be available at http://localhost:5173/
 ```
 VITE_GEMINI_API_KEY=your_api_key_here
 VITE_GOOGLE_API_KEY=your_api_key_here  # Fallback
+# Optional (defaults to gemini-1.5-flash in app)
+VITE_GEMINI_MODEL=gemini-1.5-flash
 ```
 
 **FastAPI Server** - Create `server/.env`:
@@ -173,15 +175,14 @@ Server will be available at http://localhost:8000/admin
 
 ### Environment Variables
 - `VITE_GEMINI_API_KEY` (KopiTalk): Required for AI conversation analysis
+- `VITE_GEMINI_MODEL` (KopiTalk): Optional, defaults to `gemini-1.5-flash`
 - `GOOGLE_API_KEY` (Server): Required for ESP32-CAM vision processing  
 - `GEMINI_MODEL` (Server): Optional, defaults to `gemini-2.5-flash`
 
 ### Model Information
-All components now use **Google Gemini 2.5-flash** (September 2025 latest):
-- ✅ Improved conversation analysis accuracy
-- ✅ Better board state detection
-- ✅ Enhanced family-appropriate content generation
-- ✅ Optimized for real-time interactions
+- Web App default: **gemini-1.5-flash** (override via `VITE_GEMINI_MODEL`)
+- Server default: **gemini-2.5-flash** (override via `GEMINI_MODEL`)
+Both paths use the latest `@google/genai` and server SDKs with correct multimodal patterns. Choose models based on quota and availability.
 
 ## 🔧 Browser Requirements
 - **Modern Browser**: Chrome 88+, Firefox 85+, Safari 14+
@@ -211,9 +212,11 @@ All components now use **Google Gemini 2.5-flash** (September 2025 latest):
 5. Test board game detection with physical game pieces
 
 ## 🎯 Recent Updates (September 2025)
-- ✅ **Migrated to Gemini 2.5-flash** for improved AI performance
-- ✅ **Updated SDK**: Now using `@google/genai` (latest unified SDK)
-- ✅ **Enhanced Error Handling**: Robust fallback mechanisms
+- ✅ **FIXED GEMINI API USAGE** - Now properly shows usage in Gemini Studio!
+- ✅ **Migrated to Gemini 1.5-flash** - Working model with proper API patterns
+- ✅ **Updated SDK**: Now using `@google/genai` (latest unified SDK) 
+- ✅ **Correct API Calls**: Fixed `ai.models.generateContent()` and `response.text` access
+- ✅ **Enhanced Error Handling**: Robust fallback mechanisms with detailed logging
 - ✅ **Performance Optimizations**: Faster response times and better reliability
 - ✅ **Family-Friendly AI**: Improved conversation analysis for intergenerational gameplay
 

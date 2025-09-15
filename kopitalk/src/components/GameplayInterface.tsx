@@ -15,14 +15,13 @@ import {
   Heart,
   Sparkles,
   DollarSign,
-  MapPin,
-  Clock,
+
   ArrowRight,
   ChefHat
 } from 'lucide-react'
 import AudioRecordingModal from './AudioRecordingModal'
 import TikTokRecordingModal from './TikTokRecordingModal'
-import { ConversationAnalysis, VideoAnalysis, RandomEvent } from '../utils/geminiApi'
+import { ConversationAnalysis, VideoAnalysis, RandomEvent, getRandomEvent } from '../utils/geminiApi'
 
 interface Props {
   gameSession: GameSession
@@ -128,10 +127,10 @@ const GameplayInterface: React.FC<Props> = ({ gameSession, onUpdateGame }) => {
         const newPosition = Math.min(currentPlayer.position + finalRoll, 20)
         updatePlayer(gameSession.current_player_index, { position: newPosition })
         
-        // Auto advance turn after 2 seconds
-        setTimeout(() => {
-          nextTurn()
-        }, 2000)
+        // Trigger a random event after moving
+        const event = getRandomEvent()
+        setCurrentEvent(event)
+        setShowEventModal(true)
       }
     }, 100)
   }
@@ -393,7 +392,6 @@ const GameplayInterface: React.FC<Props> = ({ gameSession, onUpdateGame }) => {
         isOpen={showAudioModal}
         onClose={() => setShowAudioModal(false)}
         onAnalysisComplete={handleAudioAnalysis}
-        onRandomEvent={handleRandomEvent}
       />
 
       <TikTokRecordingModal
@@ -437,7 +435,7 @@ const GameplayInterface: React.FC<Props> = ({ gameSession, onUpdateGame }) => {
               )}
               
               <button
-                onClick={() => setShowEventModal(false)}
+                onClick={() => { setShowEventModal(false); setTimeout(() => nextTurn(), 300) }}
                 className="px-6 py-3 bg-gradient-to-r from-kopi-500 to-talk-500 text-white rounded-xl hover:from-kopi-600 hover:to-talk-600 transition-all duration-300 hover:scale-105 glow-pulse"
               >
                 Continue Family Time!
