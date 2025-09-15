@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Camera, Video, VideoOff, Play, X, Upload, DollarSign } from 'lucide-react'
+import { analyzeVideo as geminiAnalyzeVideo, VideoAnalysis } from '../utils/geminiApi'
 
 interface Props {
   isOpen: boolean
   onClose: () => void
-  onEarningsComplete: (result: { earnings: number; feedback: string; performance_score: number }) => void
+  onEarningsComplete: (result: VideoAnalysis) => void
 }
 
 const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComplete }) => {
@@ -18,7 +19,7 @@ const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComp
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const timerRef = useRef<number | null>(null)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Popular TikTok trends for suggestions
   const trendSuggestions = [
@@ -135,51 +136,14 @@ const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComp
     }
   }
 
-  const analyzeVideo = async () => {
-    if (!videoBlob || !trendDescription.trim()) {
-      alert('Please record a video and add a description!')
-      return
-    }
+    const analyzeVideo = async () => {
+    if (!videoBlob || !trendDescription.trim()) return
     
     setIsAnalyzing(true)
     
     try {
-      // Simulate Gemini API analysis
-      await new Promise(resolve => setTimeout(resolve, 3000))
-      
-      // Generate realistic earnings based on video and description
-      const videoSize = videoBlob.size / (1024 * 1024) // MB
-      const descriptionLength = trendDescription.length
-      
-      // Base performance calculation
-      let performance = Math.random() * 0.4 + 0.5 // 50-90% base
-      
-      // Bonus for longer description (shows effort)
-      if (descriptionLength > 50) performance += 0.1
-      if (descriptionLength > 100) performance += 0.1
-      
-      // Bonus for reasonable video size (shows actual recording)
-      if (videoSize > 0.5) performance += 0.1
-      if (videoSize > 2) performance += 0.1
-      
-      // Cap at 100%
-      performance = Math.min(performance, 1)
-      
-      const earnings = Math.floor(performance * 50) + 10 // $10-60
-      const performanceScore = Math.round(performance * 100)
-      
-      const feedbackMessages = [
-        `Excellent creativity! Your trend interpretation was ${performanceScore}% on point.`,
-        `Great performance! The AI detected ${performanceScore}% trend alignment.`,
-        `Nice work! You captured ${performanceScore}% of the trending elements.`,
-        `Well done! Your video scored ${performanceScore}% for authenticity and fun.`
-      ]
-      
-      const result = {
-        earnings,
-        performance_score: performanceScore,
-        feedback: feedbackMessages[Math.floor(Math.random() * feedbackMessages.length)]
-      }
+      // Use real Gemini API analysis
+      const result = await geminiAnalyzeVideo(videoBlob, trendDescription)
       
       onEarningsComplete(result)
       onClose()
@@ -200,8 +164,8 @@ const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComp
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 fade-in-up">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto scale-in">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
             <Camera className="w-6 h-6 text-kopi-500" />
@@ -209,7 +173,7 @@ const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComp
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 transition-colors duration-200"
             disabled={isAnalyzing}
           >
             <X className="w-5 h-5" />
@@ -217,7 +181,7 @@ const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComp
         </div>
 
         {/* Camera Preview */}
-        <div className="mb-6">
+        <div className="mb-6 slide-in-left">
           <div className="relative bg-black rounded-xl overflow-hidden aspect-video">
             <video
               ref={videoRef}
@@ -229,7 +193,7 @@ const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComp
             
             {isRecording && (
               <div className="absolute top-4 left-4">
-                <div className="flex items-center gap-2 bg-red-500 text-white px-3 py-1 rounded-full">
+                <div className="flex items-center gap-2 bg-red-500 text-white px-3 py-1 rounded-full recording-pulse">
                   <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
                   <span className="text-sm font-medium">REC {formatTime(recordingTime)}</span>
                 </div>
@@ -248,12 +212,12 @@ const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComp
         </div>
 
         {/* Recording Controls */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-6 fade-in-up">
           {!videoBlob ? (
             <button
               onClick={isRecording ? stopRecording : startRecording}
               disabled={!hasCamera}
-              className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${
+              className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-200 ${
                 isRecording
                   ? 'bg-red-500 hover:bg-red-600 recording-pulse'
                   : 'bg-kopi-500 hover:bg-kopi-600'
@@ -262,43 +226,44 @@ const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComp
               {isRecording ? <VideoOff className="w-8 h-8" /> : <Video className="w-8 h-8" />}
             </button>
           ) : (
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex items-center justify-center gap-3 bounce-in">
               <div className="text-green-600 text-center">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Play className="w-6 h-6" />
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2 glow-pulse">
+                  <Play className="w-6 h-6 animate-pulse" />
                 </div>
-                <p className="text-sm">Video recorded!</p>
-                <p className="text-xs text-gray-500">{formatTime(recordingTime)}</p>
+                <p className="text-sm shimmer">Video recorded!</p>
+                <p className="text-xs text-gray-500 fade-in-up">{formatTime(recordingTime)}</p>
               </div>
             </div>
           )}
         </div>
 
         {/* Trend Description */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="mb-6 slide-in-right">
+          <label className="block text-sm font-medium text-gray-700 mb-2 bounce-in">
             Describe your TikTok trend
           </label>
           <textarea
             value={trendDescription}
             onChange={(e) => setTrendDescription(e.target.value)}
             placeholder="What trend are you performing? Be creative and detailed!"
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kopi-500 resize-none"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kopi-500 resize-none transition-all duration-300 hover:border-kopi-300 fade-in-up"
             rows={3}
             maxLength={200}
           />
-          <p className="text-xs text-gray-500 mt-1">{trendDescription.length}/200 characters</p>
+          <p className="text-xs text-gray-500 mt-1 shimmer">{trendDescription.length}/200 characters</p>
         </div>
 
         {/* Trend Suggestions */}
-        <div className="mb-6">
-          <p className="text-sm font-medium text-gray-700 mb-2">💡 Trend ideas:</p>
+        <div className="mb-6 fade-in-up">
+          <p className="text-sm font-medium text-gray-700 mb-2 bounce-in">💡 Trend ideas:</p>
           <div className="flex flex-wrap gap-2">
             {trendSuggestions.slice(0, 3).map((suggestion, index) => (
               <button
                 key={index}
                 onClick={() => setTrendDescription(suggestion)}
-                className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full text-gray-700 transition-colors"
+                className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full text-gray-700 transition-all duration-300 hover:scale-105 card-hover"
+                style={{ animationDelay: `${index * 100}ms` }}
               >
                 {suggestion}
               </button>
@@ -308,21 +273,21 @@ const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComp
 
         {/* Analysis Button */}
         {videoBlob && (
-          <div className="text-center mb-4">
+          <div className="text-center mb-4 scale-in">
             <button
               onClick={analyzeVideo}
               disabled={isAnalyzing || !trendDescription.trim()}
-              className="inline-flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-kopi-500 to-talk-500 hover:from-kopi-600 hover:to-talk-600 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-kopi-500 to-talk-500 hover:from-kopi-600 hover:to-talk-600 text-white rounded-xl font-medium transition-all duration-300 hover:scale-105 glow-pulse disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isAnalyzing ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Analyzing Performance...
+                  <span className="shimmer">Analyzing Performance...</span>
                 </>
               ) : (
                 <>
-                  <DollarSign className="w-5 h-5" />
-                  Analyze & Earn Money ($10-60)
+                  <DollarSign className="w-5 h-5 animate-bounce" />
+                  Analyze & Earn Money ($5-10)
                 </>
               )}
             </button>
@@ -330,8 +295,8 @@ const TikTokRecordingModal: React.FC<Props> = ({ isOpen, onClose, onEarningsComp
         )}
 
         {/* Instructions */}
-        <div className="bg-gradient-to-r from-kopi-50 to-talk-50 rounded-xl p-4">
-          <p className="text-sm text-gray-600 text-center">
+        <div className="bg-gradient-to-r from-kopi-50 to-talk-50 rounded-xl p-4 fade-in-up card-hover">
+          <p className="text-sm text-gray-600 text-center bounce-in">
             Record a creative TikTok trend with family members! The AI will analyze your performance and award money based on creativity, effort, and trend alignment.
           </p>
         </div>

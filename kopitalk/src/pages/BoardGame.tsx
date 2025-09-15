@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { gameStorage } from '../utils/gameStorage'
 import { GameSession } from '../types'
 import FamilySetup from '../components/FamilySetup'
+import BoardSetupModal from '../components/BoardSetupModal'
 import GameplayInterface from '../components/GameplayInterface'
 
 const BoardGame: React.FC = () => {
@@ -59,10 +60,10 @@ const BoardGame: React.FC = () => {
 
   const handleFamilySetupComplete = (difficulty: string, players: any[]) => {
     const budgetMap: Record<string, number> = {
-      easy: 150,
-      medium: 100,
-      hard: 75,
-      expert: 50
+      easy: 0,
+      medium: 0,
+      hard: 0,
+      expert: 0
     }
 
     updateGameSession({
@@ -75,8 +76,14 @@ const BoardGame: React.FC = () => {
         cash: 0,
         ezlink_balance: 0
       })),
-      game_phase: 'gameplay',
+      game_phase: 'board_setup',
       current_player_index: 0
+    })
+  }
+
+  const handleBoardSetupComplete = () => {
+    updateGameSession({
+      game_phase: 'gameplay'
     })
   }
 
@@ -113,6 +120,14 @@ const BoardGame: React.FC = () => {
       return (
         <FamilySetup
           onSetupComplete={handleFamilySetupComplete}
+        />
+      )
+    
+    case 'board_setup':
+      return (
+        <BoardSetupModal
+          difficulty={gameSession.difficulty}
+          onSetupComplete={handleBoardSetupComplete}
         />
       )
     

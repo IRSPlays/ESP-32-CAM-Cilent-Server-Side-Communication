@@ -32,10 +32,10 @@ export const gameStorage = {
   // Create new game
   createGame(difficulty: string, players: any[]): GameSession {
     const budgetMap: Record<string, number> = {
-      easy: 150,
-      medium: 100,
-      hard: 75,
-      expert: 50
+      easy: 0,
+      medium: 0,
+      hard: 0,
+      expert: 0
     }
 
     const game: GameSession = {

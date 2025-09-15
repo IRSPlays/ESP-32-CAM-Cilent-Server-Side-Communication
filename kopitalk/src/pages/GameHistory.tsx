@@ -31,11 +31,11 @@ const GameHistory: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-kopi-50 via-white to-talk-50">
-      {/* Animated Background Elements */}
+      {/* Simplified Background Elements - reduced for mobile performance */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-kopi-200 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-talk-200 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float" style={{ animationDelay: '2s' }} />
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-float" style={{ animationDelay: '4s' }} />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-kopi-200 rounded-full mix-blend-multiply filter blur-xl opacity-50 animate-float" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-talk-200 rounded-full mix-blend-multiply filter blur-xl opacity-50 animate-float" style={{ animationDelay: '2s' }} />
+        <div className="hidden md:block absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-float" style={{ animationDelay: '4s' }} />
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-8">
@@ -54,7 +54,7 @@ const GameHistory: React.FC = () => {
 
           <div className="grid md:grid-cols-2 gap-6 mb-8 max-w-4xl mx-auto">
             {/* Kopi (Traditional) Card */}
-            <div className="card-hover bg-gradient-to-br from-kopi-500 to-kopi-600 p-8 rounded-2xl text-white shadow-lg">
+            <div className="card-hover bg-gradient-to-br from-kopi-500 to-kopi-600 p-8 rounded-2xl text-white shadow-lg slide-in-left">
               <Coffee className="w-12 h-12 mb-4 mx-auto opacity-90" />
               <h3 className="text-2xl font-bold mb-3">Kopi</h3>
               <p className="opacity-90 mb-4">Traditional connections through storytelling, wisdom sharing, and cultural heritage.</p>
@@ -65,7 +65,7 @@ const GameHistory: React.FC = () => {
             </div>
 
             {/* Talk (Modern) Card */}
-            <div className="card-hover bg-gradient-to-br from-talk-500 to-talk-600 p-8 rounded-2xl text-white shadow-lg">
+            <div className="card-hover bg-gradient-to-br from-talk-500 to-talk-600 p-8 rounded-2xl text-white shadow-lg slide-in-right">
               <MessageCircle className="w-12 h-12 mb-4 mx-auto opacity-90" />
               <h3 className="text-2xl font-bold mb-3">Talk</h3>
               <p className="opacity-90 mb-4">Modern conversations with AI-powered topics, TikTok trends, and digital challenges.</p>
@@ -79,7 +79,7 @@ const GameHistory: React.FC = () => {
           {/* Start New Game Button */}
           <button
             onClick={startNewGame}
-            className="inline-flex items-center gap-3 bg-gradient-to-r from-kopi-500 via-purple-500 to-talk-500 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+            className="inline-flex items-center gap-3 bg-gradient-to-r from-kopi-500 via-purple-500 to-talk-500 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
           >
             <Users className="w-6 h-6" />
             Start New Family Adventure
@@ -96,11 +96,12 @@ const GameHistory: React.FC = () => {
             </h2>
             
             <div className="grid gap-4">
-              {games.map((game) => (
+              {games.map((game, index) => (
                 <div
                   key={game.id}
                   onClick={() => continueGame(game.id)}
-                  className="card-hover bg-white p-6 rounded-xl shadow-md border border-gray-100 cursor-pointer"
+                  className="card-hover bg-white p-6 rounded-xl shadow-md border border-gray-100 cursor-pointer fade-in-up"
+                  style={{ animationDelay: `${index * 0.1}s` }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">

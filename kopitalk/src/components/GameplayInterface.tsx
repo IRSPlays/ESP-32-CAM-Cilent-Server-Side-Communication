@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import AudioRecordingModal from './AudioRecordingModal'
 import TikTokRecordingModal from './TikTokRecordingModal'
+import { ConversationAnalysis, VideoAnalysis, RandomEvent } from '../utils/geminiApi'
 
 interface Props {
   gameSession: GameSession
@@ -33,6 +34,8 @@ const GameplayInterface: React.FC<Props> = ({ gameSession, onUpdateGame }) => {
   const [showTikTokModal, setShowTikTokModal] = useState(false)
   const [diceRoll, setDiceRoll] = useState<number | null>(null)
   const [isRolling, setIsRolling] = useState(false)
+  const [currentEvent, setCurrentEvent] = useState<RandomEvent | null>(null)
+  const [showEventModal, setShowEventModal] = useState(false)
 
   // Markets data
   const markets = [
@@ -133,37 +136,60 @@ const GameplayInterface: React.FC<Props> = ({ gameSession, onUpdateGame }) => {
     }, 100)
   }
 
-  const handleAudioAnalysis = (result: { quality: number; movement: number; earnings: number; feedback: string }) => {
-    // Update current player with results
-    updatePlayer(gameSession.current_player_index, {
-      position: Math.min(currentPlayer.position + result.movement, 20),
-      points: currentPlayer.points + result.quality,
-      cash: currentPlayer.cash + result.earnings
+  const handleAudioAnalysis = (result: ConversationAnalysis) => {
+    // Update ALL family members since it's a family conversation
+    const updatedMembers = gameSession.family_members.map(member => ({
+      ...member,
+      position: Math.min(member.position + result.movement, 20),
+      points: member.points + Math.floor(result.quality / 10), // Quality points distributed
+    }))
+    
+    // Add to family budget (conversation doesn't earn individual cash)
+    onUpdateGame({ 
+      family_members: updatedMembers,
+      family_budget: gameSession.family_budget + Math.floor(result.movement * 2)
     })
     
     setShowAudioModal(false)
     
     // Show success message
-    alert(`${result.feedback}\nEarned: $${result.earnings}\nMoved: ${result.movement} spaces`)
-    
-    // Auto advance turn
-    setTimeout(nextTurn, 1000)
+    alert(`${result.feedback}\nFamily moved: ${result.movement} spaces\nBonding Level: ${result.bonding_level}`)
   }
 
-  const handleTikTokEarnings = (result: { earnings: number; feedback: string; performance_score: number }) => {
-    // Update current player with earnings
-    updatePlayer(gameSession.current_player_index, {
-      cash: currentPlayer.cash + result.earnings,
-      points: currentPlayer.points + result.performance_score
+  const handleTikTokEarnings = (result: VideoAnalysis) => {
+    // TikTok earnings go to current family member who created the video
+    const updatedMembers = gameSession.family_members.map(member => ({
+      ...member,
+      cash: member.cash + Math.floor(result.earnings / gameSession.family_members.length), // Distribute earnings
+      points: member.points + Math.floor(result.performance_score / 10)
+    }))
+    
+    onUpdateGame({ 
+      family_members: updatedMembers,
+      family_budget: gameSession.family_budget + result.earnings
     })
     
     setShowTikTokModal(false)
     
     // Show success message
-    alert(`${result.feedback}\nEarned: $${result.earnings}!`)
+    alert(`${result.feedback}\nFamily earned: $${result.earnings}!\nCreativity: ${result.creativity_level}`)
+  }
+
+  const handleRandomEvent = (event: RandomEvent) => {
+    setCurrentEvent(event)
+    setShowEventModal(true)
     
-    // Auto advance turn
-    setTimeout(nextTurn, 1000)
+    // Apply event effects to all family members
+    if (event.effect) {
+      const updatedMembers = gameSession.family_members.map(member => ({
+        ...member,
+        cash: member.cash + (event.effect?.money || 0),
+        position: Math.min(member.position + (event.effect?.movement || 0), 20),
+        points: member.points + (event.effect?.points || 0)
+      }))
+      
+      onUpdateGame({ family_members: updatedMembers })
+    }
   }
 
   const handleMarketShopping = (marketId: string) => {
@@ -195,37 +221,37 @@ const GameplayInterface: React.FC<Props> = ({ gameSession, onUpdateGame }) => {
       <div className="container mx-auto px-4 py-6">
         
         {/* Header */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
+        <div className="bg-white rounded-2xl p-6 shadow-lg mb-6 fade-in-up glow-pulse">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold gradient-text flex items-center gap-2">
-                <ChefHat className="w-6 h-6" />
+            <div className="slide-in-left">
+              <h1 className="text-2xl font-bold gradient-text flex items-center gap-2 bounce-in">
+                <ChefHat className="w-6 h-6 animate-bounce" />
                 Today's Family Challenge!
               </h1>
-              <p className="text-gray-600">Cook Grandma's Secret Laksa Recipe Together</p>
+              <p className="text-gray-600 shimmer">Cook Grandma's Secret Laksa Recipe Together</p>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500">Family Budget</p>
-              <p className="text-2xl font-bold text-green-600">${gameSession.family_budget}</p>
+            <div className="text-right slide-in-right">
+              <p className="text-sm text-gray-500 fade-in-up">Family Budget</p>
+              <p className="text-2xl font-bold text-green-600 scale-in turn-indicator">${gameSession.family_budget}</p>
             </div>
           </div>
         </div>
 
-        {/* Current Turn Indicator */}
-        <div className="bg-gradient-to-r from-kopi-500 to-talk-500 rounded-2xl p-4 shadow-lg mb-6 text-white">
+        {/* Family Bonding Indicator */}
+        <div className="bg-gradient-to-r from-kopi-500 to-talk-500 rounded-2xl p-4 shadow-lg mb-6 text-white turn-indicator glow-pulse bounce-in">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {React.createElement(getRoleIcon(currentPlayer.role), { className: "w-8 h-8" })}
+            <div className="flex items-center gap-3 slide-in-left">
+              <Heart className="w-8 h-8 animate-pulse" />
               <div>
-                <h2 className="text-xl font-bold">{currentPlayer.name}'s Turn</h2>
-                <p className="opacity-90 text-sm">Choose an action to take</p>
+                <h2 className="text-xl font-bold gradient-text">Family Bonding Time</h2>
+                <p className="opacity-90 text-sm shimmer">Connect across generations through conversation & fun!</p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm opacity-90">Next: {gameSession.family_members[nextPlayerIndex].name}</p>
+            <div className="text-right slide-in-right">
+              <p className="text-sm opacity-90">Active Players</p>
               <div className="flex items-center gap-2 mt-1">
-                <ArrowRight className="w-4 h-4" />
-                <span className="font-medium">{gameSession.family_members[nextPlayerIndex].role}</span>
+                <Users className="w-4 h-4 animate-pulse" />
+                <span className="font-medium">{gameSession.family_members.length} Members</span>
               </div>
             </div>
           </div>
@@ -235,37 +261,31 @@ const GameplayInterface: React.FC<Props> = ({ gameSession, onUpdateGame }) => {
           
           {/* Players Panel */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <Users className="w-5 h-5" />
+            <div className="bg-white rounded-2xl p-6 shadow-lg fade-in-up glow-pulse">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2 bounce-in">
+                <Users className="w-5 h-5 animate-pulse" />
                 Family Members
               </h2>
               
               <div className="space-y-4">
                 {gameSession.family_members.map((member, index) => {
                   const Icon = getRoleIcon(member.role)
-                  const isCurrentPlayer = index === gameSession.current_player_index
                   
                   return (
                     <div
                       key={index}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        isCurrentPlayer 
-                          ? 'border-kopi-500 bg-kopi-50' 
-                          : 'border-gray-200'
-                      }`}
+                      className="p-4 rounded-xl border-2 border-gray-200 hover:border-kopi-300 transition-all duration-500 card-hover bg-gradient-to-r from-kopi-25 to-talk-25"
+                      style={{ animationDelay: `${index * 0.1}s` }}
                     >
                       <div className="flex items-center gap-3 mb-2">
-                        <Icon className={`w-6 h-6 ${isCurrentPlayer ? 'text-kopi-600' : 'text-gray-600'}`} />
-                        <div>
+                        <Icon className="w-6 h-6 text-kopi-600 animate-pulse" />
+                        <div className="fade-in-up">
                           <h3 className="font-semibold text-gray-800">{member.name}</h3>
                           <p className="text-sm text-gray-500 capitalize">{member.role}</p>
                         </div>
-                        {isCurrentPlayer && (
-                          <div className="ml-auto bg-kopi-500 text-white px-2 py-1 rounded-full text-xs font-medium animate-pulse">
-                            TURN
-                          </div>
-                        )}
+                        <div className="ml-auto bg-gradient-to-r from-kopi-500 to-talk-500 text-white px-2 py-1 rounded-full text-xs font-medium glow-pulse">
+                          ACTIVE
+                        </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-2 text-sm">
@@ -303,63 +323,62 @@ const GameplayInterface: React.FC<Props> = ({ gameSession, onUpdateGame }) => {
                 {/* Audio Recording */}
                 <button
                   onClick={() => setShowAudioModal(true)}
-                  className="card-hover p-6 bg-gradient-to-br from-talk-500 to-talk-600 text-white rounded-xl"
+                  className="card-hover p-6 bg-gradient-to-br from-talk-500 to-talk-600 text-white rounded-xl slide-in-left glow-pulse"
                 >
-                  <Mic className="w-8 h-8 mb-3" />
-                  <h3 className="font-semibold mb-2">Record Conversation</h3>
-                  <p className="text-sm opacity-90">Have a family discussion and earn points & movement</p>
+                  <Mic className="w-8 h-8 mb-3 animate-pulse" />
+                  <h3 className="font-semibold mb-2 bounce-in">Record Conversation</h3>
+                  <p className="text-sm opacity-90 fade-in-up">Have a family discussion and move 1-5 spaces</p>
                 </button>
 
                 {/* TikTok Recording */}
-                <button
-                  onClick={() => setShowTikTokModal(true)}
-                  className="card-hover p-6 bg-gradient-to-br from-kopi-500 to-kopi-600 text-white rounded-xl"
-                >
-                  <Camera className="w-8 h-8 mb-3" />
-                  <h3 className="font-semibold mb-2">TikTok Trend Challenge</h3>
-                  <p className="text-sm opacity-90">Create viral content and earn $10-60</p>
-                </button>
-
-                {/* Dice Roll */}
+                  <button
+                    onClick={() => setShowTikTokModal(true)}
+                    className="card-hover p-6 bg-gradient-to-br from-kopi-500 to-kopi-600 text-white rounded-xl slide-in-right glow-pulse"
+                  >
+                    <Camera className="w-8 h-8 mb-3 animate-bounce" />
+                    <h3 className="font-semibold mb-2 bounce-in">TikTok Trend Challenge</h3>
+                    <p className="text-sm opacity-90 fade-in-up">Create viral content and earn $5-10</p>
+                  </button>                {/* Dice Roll */}
                 <button
                   onClick={rollDice}
                   disabled={isRolling}
-                  className="card-hover p-6 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl disabled:opacity-50"
+                  className="card-hover p-6 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl disabled:opacity-50 fade-in-up glow-pulse"
                 >
-                  {React.createElement(getDiceIcon(diceRoll), { className: `w-8 h-8 mb-3 ${isRolling ? 'animate-bounce' : ''}` })}
-                  <h3 className="font-semibold mb-2">
+                  {React.createElement(getDiceIcon(diceRoll), { className: `w-8 h-8 mb-3 transition-all duration-300 ${isRolling ? 'animate-spin' : 'animate-pulse'}` })}
+                  <h3 className="font-semibold mb-2 bounce-in">
                     {isRolling ? 'Rolling...' : diceRoll ? `Rolled ${diceRoll}!` : 'Roll Dice'}
                   </h3>
-                  <p className="text-sm opacity-90">
+                  <p className="text-sm opacity-90 shimmer">
                     {diceRoll ? 'Turn ending...' : 'Move forward and end turn'}
                   </p>
                 </button>
 
                 {/* Market Shopping */}
-                <div className="p-6 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl">
-                  <ShoppingCart className="w-8 h-8 mb-3" />
-                  <h3 className="font-semibold mb-2">Visit Markets</h3>
-                  <p className="text-sm opacity-90 mb-3">Shop for ingredients at different locations</p>
+                <div className="p-6 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl scale-in glow-pulse">
+                  <ShoppingCart className="w-8 h-8 mb-3 animate-bounce" />
+                  <h3 className="font-semibold mb-2 bounce-in">Visit Markets</h3>
+                  <p className="text-sm opacity-90 mb-3 fade-in-up">Shop for ingredients at different locations</p>
                 </div>
               </div>
 
               {/* Markets Grid */}
               <div className="grid md:grid-cols-2 gap-4">
-                {markets.map((market) => (
+                {markets.map((market, index) => (
                   <button
                     key={market.id}
                     onClick={() => handleMarketShopping(market.id)}
-                    className="card-hover p-4 bg-gray-50 hover:bg-gray-100 rounded-xl border border-gray-200 text-left"
+                    className="card-hover p-4 bg-gray-50 hover:bg-gray-100 rounded-xl border border-gray-200 text-left transition-all duration-500 fade-in-up glow-pulse"
+                    style={{ animationDelay: `${index * 0.1}s` }}
                   >
                     <div className="flex items-center gap-3 mb-2">
-                      <div className={`w-3 h-3 rounded-full ${market.color}`} />
-                      <h4 className="font-semibold text-gray-800 text-sm">{market.name}</h4>
+                      <div className={`w-3 h-3 rounded-full ${market.color} animate-pulse`} />
+                      <h4 className="font-semibold text-gray-800 text-sm bounce-in">{market.name}</h4>
                     </div>
-                    <p className="text-xs text-gray-600 mb-1">{market.pricing}</p>
-                    <p className="text-xs text-gray-500">{market.queue} • {market.special}</p>
-                    <div className="flex items-center gap-1 mt-2">
-                      <div className={`w-2 h-2 rounded-full ${market.availability > 80 ? 'bg-green-400' : 'bg-yellow-400'}`} />
-                      <span className="text-xs text-gray-500">{market.availability}% available</span>
+                    <p className="text-xs text-gray-600 mb-1 slide-in-left">{market.pricing}</p>
+                    <p className="text-xs text-gray-500 slide-in-right">{market.queue} • {market.special}</p>
+                    <div className="flex items-center gap-1 mt-2 scale-in">
+                      <div className={`w-2 h-2 rounded-full transition-all duration-300 ${market.availability > 80 ? 'bg-green-400 animate-pulse' : 'bg-yellow-400 animate-bounce'}`} />
+                      <span className="text-xs text-gray-500 shimmer">{market.availability}% available</span>
                     </div>
                   </button>
                 ))}
@@ -374,6 +393,7 @@ const GameplayInterface: React.FC<Props> = ({ gameSession, onUpdateGame }) => {
         isOpen={showAudioModal}
         onClose={() => setShowAudioModal(false)}
         onAnalysisComplete={handleAudioAnalysis}
+        onRandomEvent={handleRandomEvent}
       />
 
       <TikTokRecordingModal
@@ -381,6 +401,51 @@ const GameplayInterface: React.FC<Props> = ({ gameSession, onUpdateGame }) => {
         onClose={() => setShowTikTokModal(false)}
         onEarningsComplete={handleTikTokEarnings}
       />
+
+      {/* Random Event Modal */}
+      {showEventModal && currentEvent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 fade-in-up">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md scale-in glow-pulse">
+            <div className="text-center">
+              <div className="text-6xl mb-4 animate-bounce">{currentEvent.emoji}</div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2 bounce-in">{currentEvent.title}</h2>
+              <p className="text-gray-600 mb-6 fade-in-up">{currentEvent.description}</p>
+              
+              {currentEvent.effect && (
+                <div className="bg-gradient-to-r from-kopi-50 to-talk-50 rounded-xl p-4 mb-6">
+                  <div className="flex items-center justify-center gap-4 text-sm">
+                    {currentEvent.effect.money && (
+                      <div className="flex items-center gap-1 text-green-600">
+                        <DollarSign className="w-4 h-4" />
+                        <span>+${currentEvent.effect.money}</span>
+                      </div>
+                    )}
+                    {currentEvent.effect.movement && (
+                      <div className="flex items-center gap-1 text-blue-600">
+                        <ArrowRight className="w-4 h-4" />
+                        <span>+{currentEvent.effect.movement} spaces</span>
+                      </div>
+                    )}
+                    {currentEvent.effect.points && (
+                      <div className="flex items-center gap-1 text-purple-600">
+                        <Sparkles className="w-4 h-4" />
+                        <span>+{currentEvent.effect.points} points</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              <button
+                onClick={() => setShowEventModal(false)}
+                className="px-6 py-3 bg-gradient-to-r from-kopi-500 to-talk-500 text-white rounded-xl hover:from-kopi-600 hover:to-talk-600 transition-all duration-300 hover:scale-105 glow-pulse"
+              >
+                Continue Family Time!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -18,10 +18,10 @@ const FamilySetup: React.FC<Props> = ({ onSetupComplete }) => {
   ])
 
   const difficulties = [
-    { id: 'easy', label: 'Easy', budget: 150, color: 'bg-green-500', description: 'Perfect for first-time players' },
-    { id: 'medium', label: 'Medium', budget: 100, color: 'bg-yellow-500', description: 'Balanced challenge for most families' },
-    { id: 'hard', label: 'Hard', budget: 75, color: 'bg-orange-500', description: 'Requires strategic thinking' },
-    { id: 'expert', label: 'Expert', budget: 50, color: 'bg-red-500', description: 'For experienced players only' }
+    { id: 'easy', label: 'Easy', budget: 0, color: 'bg-green-500', description: 'Perfect for first-time players' },
+    { id: 'medium', label: 'Medium', budget: 0, color: 'bg-yellow-500', description: 'Balanced challenge for most families' },
+    { id: 'hard', label: 'Hard', budget: 0, color: 'bg-orange-500', description: 'Requires strategic thinking' },
+    { id: 'expert', label: 'Expert', budget: 0, color: 'bg-red-500', description: 'For experienced players only' }
   ]
 
   const roles = [
@@ -67,23 +67,23 @@ const FamilySetup: React.FC<Props> = ({ onSetupComplete }) => {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
           {/* Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-8 fade-in-up">
             <h1 className="text-4xl font-bold gradient-text mb-4">Family Setup</h1>
-            <p className="text-gray-600">Configure your family for the KopiTalk adventure</p>
+            <p className="text-gray-600 slide-in-left">Configure your family for the KopiTalk adventure</p>
           </div>
 
           {/* Difficulty Selection */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg mb-8">
+          <div className="bg-white rounded-2xl p-6 shadow-lg mb-8 slide-in-left">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">Choose Difficulty</h2>
             <div className="grid grid-cols-2 gap-4">
-              {difficulties.map((diff) => (
+              {difficulties.map((diff, index) => (
                 <button
                   key={diff.id}
                   onClick={() => setDifficulty(diff.id)}
-                  className={`p-4 rounded-xl border-2 text-left transition-all ${
+                  className={`p-4 rounded-xl border-2 text-left transition-all duration-300 card-hover ${
                     difficulty === diff.id
                       ? 'border-kopi-500 bg-kopi-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                   }`}
                 >
                   <div className="flex items-center gap-3 mb-2">
@@ -98,13 +98,13 @@ const FamilySetup: React.FC<Props> = ({ onSetupComplete }) => {
           </div>
 
           {/* Player Setup */}
-          <div className="bg-white rounded-2xl p-6 shadow-lg mb-8">
+          <div className="bg-white rounded-2xl p-6 shadow-lg mb-8 slide-in-right">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-800">Family Members</h2>
               {players.length < 4 && (
                 <button
                   onClick={addPlayer}
-                  className="text-kopi-500 hover:text-kopi-600 text-sm font-medium"
+                  className="text-kopi-500 hover:text-kopi-600 text-sm font-medium transition-colors duration-200"
                 >
                   + Add Player
                 </button>
@@ -120,14 +120,14 @@ const FamilySetup: React.FC<Props> = ({ onSetupComplete }) => {
                       placeholder="Enter name"
                       value={player.name}
                       onChange={(e) => updatePlayer(index, 'name', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-kopi-500"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-kopi-500 transition-colors duration-200"
                     />
                   </div>
                   <div className="flex-1">
                     <select
                       value={player.role}
                       onChange={(e) => updatePlayer(index, 'role', e.target.value as any)}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-kopi-500"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-kopi-500 transition-colors duration-200"
                     >
                       {roles.map((role) => (
                         <option key={role.id} value={role.id}>
@@ -139,7 +139,7 @@ const FamilySetup: React.FC<Props> = ({ onSetupComplete }) => {
                   {players.length > 2 && (
                     <button
                       onClick={() => removePlayer(index)}
-                      className="text-red-500 hover:text-red-600 text-sm"
+                      className="text-red-500 hover:text-red-600 text-sm transition-colors duration-200"
                     >
                       Remove
                     </button>
@@ -162,10 +162,10 @@ const FamilySetup: React.FC<Props> = ({ onSetupComplete }) => {
           <button
             onClick={handleStart}
             disabled={!canStart()}
-            className={`w-full py-4 rounded-2xl text-white font-semibold text-lg transition-all ${
+            className={`w-full py-4 rounded-2xl text-white font-semibold text-lg transition-all duration-300 ${
               canStart()
-                ? 'bg-gradient-to-r from-kopi-500 to-talk-500 hover:shadow-lg transform hover:scale-105'
-                : 'bg-gray-300 cursor-not-allowed'
+                ? 'bg-gradient-to-r from-kopi-500 to-talk-500 hover:shadow-xl hover:scale-105'
+                : 'bg-gray-300 cursor-not-allowed opacity-50'
             }`}
           >
             Start Family Adventure
