@@ -130,7 +130,6 @@ const GameHistory: React.FC = () => {
             <Sparkles className="w-5 h-5" />
           </button>
         </div>
-        </div>
 
         {/* Game History */}
         {games.length > 0 && (
