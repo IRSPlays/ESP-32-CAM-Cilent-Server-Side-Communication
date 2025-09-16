@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { gameStorage } from '../utils/gameStorage'
 import { GameSession } from '../types'
-import { Coffee, MessageCircle, Sparkles, Users, Clock, Trophy } from 'lucide-react'
+import { Coffee, MessageCircle, Sparkles, Users, Clock, Trophy, ShoppingCart, ChefHat, MapPin, CreditCard } from 'lucide-react'
 
 const GameHistory: React.FC = () => {
   const [games, setGames] = useState<GameSession[]>([])
@@ -77,13 +77,57 @@ const GameHistory: React.FC = () => {
           </div>
 
           {/* Start New Game Button */}
+                    {/* Quick Access Features */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 max-w-4xl mx-auto">
+            <button
+              onClick={() => navigate('/delivery')}
+              className="p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition-all border border-gray-100 hover:border-blue-200"
+            >
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-2">
+                <ShoppingCart className="w-5 h-5 text-blue-600" />
+              </div>
+              <p className="text-sm font-medium text-gray-800">Delivery</p>
+            </button>
+
+            <button
+              onClick={() => navigate('/cooking')}
+              className="p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition-all border border-gray-100 hover:border-orange-200"
+            >
+              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-2">
+                <ChefHat className="w-5 h-5 text-orange-600" />
+              </div>
+              <p className="text-sm font-medium text-gray-800">Cooking</p>
+            </button>
+
+            <button
+              onClick={() => navigate('/bus')}
+              className="p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition-all border border-gray-100 hover:border-green-200"
+            >
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-2">
+                <MapPin className="w-5 h-5 text-green-600" />
+              </div>
+              <p className="text-sm font-medium text-gray-800">Bus Times</p>
+            </button>
+
+            <button
+              onClick={() => navigate('/ezlink')}
+              className="p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition-all border border-gray-100 hover:border-purple-200"
+            >
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-2">
+                <CreditCard className="w-5 h-5 text-purple-600" />
+              </div>
+              <p className="text-sm font-medium text-gray-800">EZ-Link</p>
+            </button>
+          </div>
+
+          {/* Start New Game Button */}
           <button
             onClick={startNewGame}
-            className="inline-flex items-center gap-3 bg-gradient-to-r from-kopi-500 via-purple-500 to-talk-500 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
+            className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-kopi-500 to-talk-500 hover:from-kopi-600 hover:to-talk-600 text-white rounded-2xl font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
           >
             <Users className="w-6 h-6" />
-            Start New Family Adventure
-            <Sparkles className="w-6 h-6" />
+            Start New Family Game
+            <Sparkles className="w-5 h-5" />
           </button>
         </div>
 
