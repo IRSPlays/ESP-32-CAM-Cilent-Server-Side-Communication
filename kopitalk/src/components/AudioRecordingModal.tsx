@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Mic, MicOff, Play, Pause, Upload, X } from 'lucide-react'
+import { Mic, MicOff, Play, Pause, Upload, X, Volume2 } from 'lucide-react'
+import { useReactMediaRecorder } from 'react-media-recorder'
 import { analyzeConversation, ConversationAnalysis } from '../utils/geminiApi'
 
 interface Props {
@@ -9,162 +10,106 @@ interface Props {
 }
 
 const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisComplete }) => {
-  const [isRecording, setIsRecording] = useState(false)
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Cleanup on unmount or close
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-      if (mediaRecorderRef.current && isRecording) {
-        mediaRecorderRef.current.stop()
-      }
-    }
-  }, [isRecording])
-
-  // Reset when modal opens/closes
-  useEffect(() => {
-    if (!isOpen) {
-      setIsRecording(false)
-      setAudioBlob(null)
-      setIsPlaying(false)
+  const {
+    status,
+    startRecording,
+    stopRecording,
+    mediaBlobUrl,
+    clearBlobUrl,
+    error
+  } = useReactMediaRecorder({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      sampleRate: 44100
+    },
+    blobPropertyBag: { type: 'audio/wav' },
+    onStart: () => {
       setRecordingTime(0)
-      setIsAnalyzing(false)
-      if (timerRef.current) clearInterval(timerRef.current)
-    }
-  }, [isOpen])
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 44100
-        } 
-      })
-      
-      // Use compatible audio format for Gemini API
-      let mimeType = 'audio/webm;codecs=opus'
-      if (!MediaRecorder.isTypeSupported(mimeType)) {
-        // Fallback to formats supported by Gemini
-        if (MediaRecorder.isTypeSupported('audio/webm')) {
-          mimeType = 'audio/webm'
-        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-          mimeType = 'audio/mp4'
-        } else {
-          mimeType = 'audio/wav' // Final fallback
-        }
-      }
-      
-      console.log('🎤 Using audio MIME type:', mimeType)
-      
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: mimeType
-      })
-      
-      const chunks: BlobPart[] = []
-      
-      mediaRecorder.ondataavailable = (event) => {
-        chunks.push(event.data)
-      }
-      
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: mimeType })
-        setAudioBlob(blob)
-        stream.getTracks().forEach(track => track.stop())
-        console.log('🎤 Audio recorded:', { 
-          size: Math.round(blob.size / 1024) + 'KB',
-          type: blob.type,
-          duration: recordingTime + 's'
-        })
-      }
-      
-      mediaRecorderRef.current = mediaRecorder
-      mediaRecorder.start()
-      setIsRecording(true)
-      setRecordingTime(0)
-      
-      // Start timer
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => {
-          if (prev >= 300) { // 5 minutes max
+          if (prev >= 300) {
             stopRecording()
             return prev
           }
           return prev + 1
         })
       }, 1000)
-      
-    } catch (error) {
-      console.error('Error starting recording:', error)
-      alert('Unable to access microphone. Please check permissions.')
-    }
-  }
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop()
-      setIsRecording(false)
+    },
+    onStop: (blobUrl: string, blob: Blob) => {
       if (timerRef.current) {
         clearInterval(timerRef.current)
-        timerRef.current = null
       }
+      console.log('🎤 Audio recorded:', { 
+        size: Math.round(blob.size / 1024) + 'KB',
+        type: blob.type,
+        duration: recordingTime + 's'
+      })
     }
-  }
+  })
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsPlaying(false)
+      setRecordingTime(0)
+      setIsAnalyzing(false)
+      if (timerRef.current) clearInterval(timerRef.current)
+      clearBlobUrl()
+    }
+  }, [isOpen, clearBlobUrl])
 
   const playAudio = () => {
-    if (audioBlob && audioRef.current) {
+    if (mediaBlobUrl && audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause()
         setIsPlaying(false)
       } else {
-        const url = URL.createObjectURL(audioBlob)
-        audioRef.current.src = url
+        audioRef.current.src = mediaBlobUrl
         audioRef.current.play()
         setIsPlaying(true)
-        
-        audioRef.current.onended = () => {
-          setIsPlaying(false)
-          URL.revokeObjectURL(url)
-        }
+        audioRef.current.onended = () => setIsPlaying(false)
       }
     }
   }
 
-  const analyzeAudio = async () => {
-    if (!audioBlob) return
+  const uploadForAnalysis = async () => {
+    if (!mediaBlobUrl) return
     
     setIsAnalyzing(true)
     
     try {
-      console.log('🎤 Starting real Gemini API analysis for conversation...', {
-        duration: recordingTime,
-        audioSize: Math.round(audioBlob.size / 1024) + 'KB',
-        mimeType: audioBlob.type
+      const response = await fetch(mediaBlobUrl)
+      const audioBlob = await response.blob()
+      
+      console.log('🔍 Analyzing conversation with Gemini...', {
+        size: Math.round(audioBlob.size / 1024) + 'KB',
+        duration: recordingTime + 's',
+        type: audioBlob.type
       })
       
-      // Use actual Gemini API analysis
       const result = await analyzeConversation(audioBlob, recordingTime)
-      
-      console.log('✅ Conversation analysis complete:', result)
       onAnalysisComplete(result)
       onClose()
     } catch (error) {
       console.error('❌ Gemini API analysis failed:', error)
       
-      // Fallback with proper ConversationAnalysis structure
       const fallbackResult: ConversationAnalysis = {
-        quality: Math.floor(Math.random() * 40) + 60, // 60-100%
-        movement: Math.floor(Math.random() * 3) + 1, // 1-3 spaces  
-        earnings: 0, // Audio gives movement, not earnings
+        quality: Math.floor(Math.random() * 40) + 60,
+        movement: Math.floor(Math.random() * 3) + 1,
+        earnings: 0,
         feedback: "AI analysis temporarily unavailable. Your conversation shows great family bonding potential!",
         topics_covered: ["family stories", "shared experiences"],
         bonding_level: recordingTime > 60 ? 'high' : recordingTime > 30 ? 'medium' : 'low'
@@ -178,18 +123,15 @@ const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisCompl
   }
 
   const saveRecording = () => {
-    if (!audioBlob) return
+    if (!mediaBlobUrl) return
     try {
-      const url = URL.createObjectURL(audioBlob)
       const a = document.createElement('a')
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-      const ext = (audioBlob.type.includes('webm') ? 'webm' : audioBlob.type.includes('mp4') ? 'mp4' : audioBlob.type.includes('wav') ? 'wav' : 'audio')
-      a.href = url
-      a.download = `kopitalk-recording-${timestamp}.${ext}`
+      a.href = mediaBlobUrl
+      a.download = `kopitalk-recording-${timestamp}.wav`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
     } catch (e) {
       console.error('Failed to save recording:', e)
     }
@@ -200,6 +142,31 @@ const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisCompl
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
+
+  const getStatusMessage = () => {
+    switch (status) {
+      case 'idle':
+        return 'Ready to record'
+      case 'acquiring_media':
+        return 'Getting microphone access...'
+      case 'recording':
+        return '🔴 RECORDING'
+      case 'stopping':
+        return 'Processing recording...'
+      case 'stopped':
+        return 'Recording complete'
+      case 'permission_denied':
+        return 'Microphone access denied'
+      case 'media_aborted':
+        return 'Recording aborted'
+      default:
+        return status
+    }
+  }
+
+  const isRecording = status === 'recording'
+  const hasRecording = status === 'stopped' && mediaBlobUrl
+  const canRecord = status === 'idle' || status === 'stopped'
 
   if (!isOpen) return null
 
@@ -217,31 +184,41 @@ const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisCompl
           </button>
         </div>
 
-        {/* Recording Interface */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm">
+              {error === 'permission_denied' 
+                ? 'Please allow microphone access to record conversations.'
+                : `Recording error: ${error}`
+              }
+            </p>
+          </div>
+        )}
+
         <div className="text-center mb-6">
           {isRecording && (
             <div className="mb-4">
-              <div className="recording-pulse w-20 h-20 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-2">
+              <div className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-2 animate-pulse">
                 <Mic className="w-8 h-8 text-white" />
               </div>
-              <p className="text-red-600 font-semibold">🔴 RECORDING</p>
+              <p className="text-red-600 font-semibold">{getStatusMessage()}</p>
               <p className="text-gray-600 text-sm">{formatTime(recordingTime)} / 5:00</p>
             </div>
           )}
 
-          {!isRecording && !audioBlob && (
+          {!isRecording && !hasRecording && (
             <div className="mb-4">
               <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
                 <Mic className="w-8 h-8 text-gray-400" />
               </div>
-              <p className="text-gray-600">Ready to record</p>
+              <p className="text-gray-600">{getStatusMessage()}</p>
             </div>
           )}
 
-          {audioBlob && !isRecording && (
+          {hasRecording && !isRecording && (
             <div className="mb-4">
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <Mic className="w-8 h-8 text-green-600" />
+                <Volume2 className="w-8 h-8 text-green-600" />
               </div>
               <p className="text-green-600">Recording complete</p>
               <p className="text-gray-600 text-sm">Duration: {formatTime(recordingTime)}</p>
@@ -249,12 +226,12 @@ const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisCompl
           )}
         </div>
 
-        {/* Controls */}
         <div className="flex gap-3 justify-center mb-6">
-          {!audioBlob && (
+          {!hasRecording && canRecord && (
             <button
               onClick={isRecording ? stopRecording : startRecording}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
+              disabled={status === 'acquiring_media' || error === 'permission_denied'}
+              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                 isRecording
                   ? 'bg-red-500 hover:bg-red-600 text-white'
                   : 'bg-kopi-500 hover:bg-kopi-600 text-white'
@@ -265,7 +242,7 @@ const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisCompl
             </button>
           )}
 
-          {audioBlob && (
+          {hasRecording && (
             <>
               <button
                 onClick={playAudio}
@@ -277,43 +254,47 @@ const AudioRecordingModal: React.FC<Props> = ({ isOpen, onClose, onAnalysisCompl
 
               <button
                 onClick={saveRecording}
-                className="flex items-center gap-2 px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-medium transition-all"
+                className="flex items-center gap-2 px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-medium transition-all"
               >
-                Save Recording
-              </button>
-              
-              <button
-                onClick={analyzeAudio}
-                disabled={isAnalyzing}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-kopi-500 to-talk-500 hover:from-kopi-600 hover:to-talk-600 text-white rounded-xl font-medium transition-all disabled:opacity-50"
-              >
-                {isAnalyzing ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4" />
-                    Analyze with AI
-                  </>
-                )}
+                Save
               </button>
             </>
           )}
         </div>
 
-        {/* Instructions */}
-        <div className="bg-gray-50 rounded-xl p-4">
-          <p className="text-sm text-gray-600 text-center">
-            {!audioBlob 
-              ? "Record a family conversation to earn points and move forward on the board!"
-              : "Listen to your recording and upload it for AI analysis to see your results."
-            }
-          </p>
-        </div>
+        {hasRecording && (
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                clearBlobUrl()
+                setRecordingTime(0)
+              }}
+              className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition-all"
+            >
+              Record Again
+            </button>
+            
+            <button
+              onClick={uploadForAnalysis}
+              disabled={isAnalyzing}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-kopi-500 to-talk-500 hover:from-kopi-600 hover:to-talk-600 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isAnalyzing ? (
+                <>
+                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  Analyze
+                </>
+              )}
+            </button>
+          </div>
+        )}
 
-        <audio ref={audioRef} className="hidden" />
+        <audio ref={audioRef} />
       </div>
     </div>
   )

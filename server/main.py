@@ -40,7 +40,7 @@ except PackageNotFoundError:
     genai_ver = "unknown"
 logger.info(f"google-generativeai version: {genai_ver}")
 
-templates = Jinja2Templates(directory="server/templates")
+templates = Jinja2Templates(directory="templates")
 
 def _downscale(image: Image.Image, max_side: int = 1024) -> Image.Image:
     try:
